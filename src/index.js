@@ -11,12 +11,12 @@ const CLIP_SKY = "CLIP_SKY";
 const CLIP_GROUND = "CLIP_GROUND";
 const CLIP_UNDEFINED = "CLIP_UNDEFINED";
 
-const trimString = buffer => {
+const trimString = (buffer) => {
   const index = buffer.indexOf("\x00");
   return buffer.toString("ascii", 0, index !== -1 ? index : null);
 };
 
-const parseLevelData = buffer => {
+const parseLevelData = (buffer) => {
   const version = buffer.toString("ascii", 0, 5);
   switch (version) {
     case "POT06":
@@ -28,7 +28,7 @@ const parseLevelData = buffer => {
   }
 };
 
-const parseAcrossLevel = buffer => {
+const parseAcrossLevel = (buffer) => {
   let offset = 41;
   const name = buffer.slice(offset, offset + 14).toString();
   offset = 100;
@@ -66,18 +66,18 @@ const parseAcrossLevel = buffer => {
     objects.push({
       x,
       y,
-      type: t === 1 ? FLOWER : t === 2 ? APPLE : t === 3 ? KILLER : START
+      type: t === 1 ? FLOWER : t === 2 ? APPLE : t === 3 ? KILLER : START,
     });
   }
 
   return {
     name,
     polygons,
-    objects
+    objects,
   };
 };
 
-const parseElmaLevel = buffer => {
+const parseElmaLevel = (buffer) => {
   let offset = 7;
   const hash = buffer.readUInt32LE(offset);
   offset += 4;
@@ -155,16 +155,20 @@ const parseElmaLevel = buffer => {
                 case 4:
                   return GRAV_RIGHT;
                 default:
-                  throw Error("invalid object gravity value");
+                  console.log(
+                    "invalid object gravity value, fallback to normal"
+                  );
+                  return GRAV_NORMAL;
               }
-            })()
+            })(),
           };
         case 3:
           return { type: KILLER };
         case 4:
           return { type: START };
         default:
-          throw Error("invalid object type value");
+          console.log("invalid object type value, fallback to flower");
+          return { type: FLOWER };
       }
     })();
     objects.push({ ...object, x, y });
@@ -197,7 +201,8 @@ const parseElmaLevel = buffer => {
         case 2:
           return CLIP_SKY;
         default:
-          throw Error("invalid picture clip value");
+          console.log("invalid picture clip value, fallback to undefined");
+          return CLIP_UNDEFINED;
       }
     })();
     pictures.push({
@@ -205,7 +210,7 @@ const parseElmaLevel = buffer => {
       x,
       y,
       distance,
-      clip
+      clip,
     });
   }
   return {
@@ -216,21 +221,21 @@ const parseElmaLevel = buffer => {
     background,
     polygons,
     objects,
-    pictures
+    pictures,
   };
 };
 
-const levToSvg = data => {
+const levToSvg = (data) => {
   const level = parseLevelData(Buffer.from(data));
   let minx;
   let maxx;
   let miny;
   let maxy;
   const svgData = level.polygons
-    .filter(p => !p.grass)
-    .map(p => {
+    .filter((p) => !p.grass)
+    .map((p) => {
       return p.vertices
-        .map(v => {
+        .map((v) => {
           if (minx === undefined || v.x < minx) minx = v.x;
           if (miny === undefined || v.y < miny) miny = v.y;
           if (maxx === undefined || v.x > maxx) maxx = v.x;
@@ -239,23 +244,26 @@ const levToSvg = data => {
         })
         .join(" ");
     });
-  level.objects.map(o => {
+  level.objects.map((o) => {
     if (o.x - 0.4 < minx) minx = o.x - 0.4;
     if (o.x + 0.4 > maxx) maxx = o.x + 0.4;
     if (o.y - 0.4 < miny) miny = o.y - 0.4;
     if (o.y + 0.4 > maxy) maxy = o.y + 0.4;
   });
-  const paths = svgData.map(s => {
+  const paths = svgData.map((s) => {
     return "M " + s + " z";
   });
 
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" xmlns:svg="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="${minx} ${miny} ${maxx -
-    minx} ${maxy - miny}">
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" xmlns:svg="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="${minx} ${miny} ${
+    maxx - minx
+  } ${maxy - miny}">
           <g><path d="${paths.join(
             " "
-          )}" style="fill: #f1f1f1; fill-rule: evenodd"/></g>${level.objects.map(
-    o =>
-      `<circle cx="${o.x}" cy="${o.y}" r="0.4" fill="${(() => {
+          )}" class="sky" style="fill: #f1f1f1; fill-rule: evenodd"/></g>${level.objects.map(
+    (o) =>
+      `<circle class="${o.type}" cx="${o.x}" cy="${
+        o.y
+      }" r="0.4" fill="${(() => {
         switch (o.type) {
           case APPLE:
             return "#af3030";
