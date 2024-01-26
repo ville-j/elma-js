@@ -261,7 +261,7 @@ const levToSvg = (data) => {
             " "
           )}" class="sky" style="fill: #f1f1f1; fill-rule: evenodd"/></g>${level.objects.map(
     (o) =>
-      `<circle class="${o.type}" cx="${o.x}" cy="${
+      `<circle class="${o.type} ${o.gravity}" cx="${o.x}" cy="${
         o.y
       }" r="0.4" fill="${(() => {
         switch (o.type) {
