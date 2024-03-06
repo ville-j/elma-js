@@ -13,7 +13,9 @@ const CLIP_UNDEFINED = "CLIP_UNDEFINED";
 
 const trimString = (buffer) => {
   const index = buffer.indexOf("\x00");
-  return buffer.toString("ascii", 0, index !== -1 ? index : null);
+  if (index < 0)
+    return buffer.toString();
+  return buffer.toString("ascii", 0, index);
 };
 
 const parseLevelData = (buffer) => {
@@ -254,30 +256,94 @@ const levToSvg = (data) => {
     return "M " + s + " z";
   });
 
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" xmlns:svg="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="${minx} ${miny} ${
-    maxx - minx
-  } ${maxy - miny}">
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" xmlns:svg="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="${minx} ${miny} ${maxx - minx
+    } ${maxy - miny}">
           <g><path d="${paths.join(
-            " "
-          )}" class="sky" style="fill: #f1f1f1; fill-rule: evenodd"/></g>${level.objects.map(
-    (o) =>
-      `<circle class="${o.type} ${o.gravity}" cx="${o.x}" cy="${
-        o.y
-      }" r="0.4" fill="${(() => {
-        switch (o.type) {
-          case APPLE:
-            return "#af3030";
-          case FLOWER:
-            return "#f7b314";
-          case START:
-            return "#159cd0";
-          default:
-            return "#000000";
-        }
-      })()}"/>`
-  )}</svg>`;
+      " "
+    )}" class="sky" style="fill: #f1f1f1; fill-rule: evenodd"/></g>${level.objects.map(
+      (o) =>
+        `<circle class="${o.type} ${o.gravity}" cx="${o.x}" cy="${o.y
+        }" r="0.4" fill="${(() => {
+          switch (o.type) {
+            case APPLE:
+              return "#af3030";
+            case FLOWER:
+              return "#f7b314";
+            case START:
+              return "#159cd0";
+            default:
+              return "#000000";
+          }
+        })()}"/>`
+    )}</svg>`;
 
   return svg;
 };
 
-module.exports = { parseLevelData, levToSvg };
+const parseLGRData = (buffer) => {
+  let offset = 0;
+
+  const version = buffer.slice(offset, offset += 5).toString();
+  const pcxCount = buffer.readUInt32LE(offset);
+  offset += 4;
+  const ident = buffer.slice(offset, offset += 4);
+  const pictureListLength = buffer.readUInt32LE(offset);
+  offset += 4;
+
+  const pictureList = [];
+
+  for (let i = 0; i < pictureListLength; i++) {
+    const name = trimString(buffer.slice(offset, offset += 10));
+    pictureList.push({ name });
+  }
+
+  for (let i = 0; i < pictureListLength; i++) {
+    const type = buffer.readUInt32LE(offset);
+    pictureList[i] = { ...pictureList[i], type };
+    offset += 4;
+  }
+
+  for (let i = 0; i < pictureListLength; i++) {
+    const distance = buffer.readUInt32LE(offset);
+    pictureList[i] = { ...pictureList[i], distance };
+    offset += 4;
+  }
+
+  for (let i = 0; i < pictureListLength; i++) {
+    const clipping = buffer.readUInt32LE(offset);
+    pictureList[i] = { ...pictureList[i], clipping };
+    offset += 4;
+  }
+
+  for (let i = 0; i < pictureListLength; i++) {
+    const tloc = buffer.readUInt32LE(offset);
+    pictureList[i] = { ...pictureList[i], tloc };
+    offset += 4;
+  }
+
+  const pcxData = [];
+
+  while (buffer.readUInt32LE(offset) !== 0x0b2e05e7) {
+    const name = trimString(buffer.slice(offset, offset += 12));
+    buffer.slice(offset, offset += 8);
+    const dataLength = buffer.readUInt32LE(offset);
+    offset += 4;
+    const data = buffer.slice(offset, offset += dataLength);
+    pcxData.push({
+      name,
+      data,
+      dataLength
+    });
+  }
+
+  return {
+    version,
+    pcxCount,
+    ident,
+    pictureListLength,
+    pictureList,
+    pcxData
+  }
+}
+
+module.exports = { parseLevelData, levToSvg, parseLGRData };
